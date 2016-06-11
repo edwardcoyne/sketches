@@ -10,6 +10,11 @@ const int cs = D8;
 const int sclk = D5;
 const int miso = D6;
 
+double currentTemp;
+// the temp needs to change by more than this amount
+// to trigger an update, this limits oscillation.
+const float tempUpdateThreshold = 1.0f;
+
 void setup() {
   Serial.begin(9600);
 
@@ -35,9 +40,23 @@ void setup() {
 }
 
 void loop() {
-  Serial.print("C = "); 
-  Serial.println(readCelsius());
-  delay(1000);
+  double newTemp = readFahrenheit();
+  if (abs(currentTemp - newTemp) > tempUpdateThreshold) {
+    Serial.print("Updated temp = "); 
+    Serial.println(newTemp);
+
+    currentTemp = newTemp;
+  }
+  delay(250);
+}
+
+// The rest of this is "borrowed" from the MAX6675 arduino
+// libraray: https://github.com/adafruit/MAX6675-library
+// I couldn't use it directly due to some missing arduino
+// libraries on the esp8266.
+
+double readFahrenheit(void) {
+  return readCelsius() * 9.0/5.0 + 32;
 }
 
 double readCelsius() {
