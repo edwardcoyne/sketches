@@ -10,10 +10,20 @@ const int cs = D8;
 const int sclk = D5;
 const int miso = D6;
 
+int startTimestamp = 0;
+
 double currentTemp;
 // the temp needs to change by more than this amount
 // to trigger an update, this limits oscillation.
-const float tempUpdateThreshold = 1.0f;
+const float tempUpdateThreshold = 2.0f;
+
+const char* redisHost = "redis";
+const String redisCommandUpdateTemp1 = "LPUSH bbq-temp1 ";
+const int redisTimeoutMS = 5000;
+
+int seconds() {
+  return millis() / 1000;
+}
 
 void setup() {
   Serial.begin(9600);
@@ -34,6 +44,9 @@ void setup() {
 
   pinMode(sclk, OUTPUT);
   pinMode(miso, INPUT);
+
+  const int serverTimestamp = getServerTimestampSeconds();
+  startTimestamp = serverTimestamp - seconds();
   
   //SPI.begin();
   delay(100);
@@ -44,10 +57,57 @@ void loop() {
   if (abs(currentTemp - newTemp) > tempUpdateThreshold) {
     Serial.print("Updated temp = "); 
     Serial.println(newTemp);
-
+    updateRedis(newTemp);
     currentTemp = newTemp;
   }
   delay(250);
+}
+
+int getServerTimestampSeconds() { 
+  WiFiClient client;
+  if (!connectToRedisAndSend(&client, "TIME")) {
+    return -1;
+  }
+  while(client.available()){
+    String line = client.readStringUntil('\r');
+    Serial.print(line);
+  }
+  return 1000;
+}
+
+void updateRedis(double newTemp) {  
+  const String command = redisCommandUpdateTemp1 + String(startTimestamp + seconds())  
+      + "," + String(newTemp);
+  WiFiClient client;
+  if (!connectToRedisAndSend(&client, command)) {
+    return;
+  }
+  
+  // Read all the lines of the reply from server and print them to Serial
+  while(client.available()){
+    String line = client.readStringUntil('\r');
+    Serial.print(line);
+  }
+}
+
+bool connectToRedisAndSend(WiFiClient* client, const String& command) {
+  const int redisPort = 6379;
+  if (!client->connect(redisHost, redisPort)) {
+    Serial.println("connection failed");
+    return false;
+  }
+
+  client->println(command);
+
+  unsigned long timeout = millis();
+  while (client->available() == 0) {
+    if (millis() - timeout > redisTimeoutMS) {
+      Serial.println("Client Timeout !");
+      client->stop();
+      return false;
+    }
+  }
+  return true; 
 }
 
 // The rest of this is "borrowed" from the MAX6675 arduino
