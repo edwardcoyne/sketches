@@ -59,6 +59,7 @@ void loop() {
     Serial.println(connected_client.remoteIP().toString());
   }
   if (!connected_client) {
+    Serial.println("No client");
     return;
   }
 
