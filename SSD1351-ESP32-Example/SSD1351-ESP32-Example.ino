@@ -1,3 +1,10 @@
+/**
+ * Example of using the SSD1351 with a ESP32 module (should work with ESP8266 as well, just slower.
+ * Mostly inspired by https://github.com/intel-iot-devkit/upm/tree/master/src/ssd1351 which in turn is
+ * inspired by the adafruit library but the edison example is self contained and eaiser to follow.
+ * Could probably fix the adafruit library to work but for my needs I don't need the full GFX lib.
+ */
+
 #include <SPI.h>
 
 #define p_sclk 18
@@ -68,16 +75,14 @@ void reset() {
 void writeCommand(uint8_t command) {
   digitalWrite(p_dc, LOW);
   SPI.write(command);
-  //SPI.transfer(command);
 }
 
 void writeData(uint8_t data) {
   digitalWrite(p_dc, HIGH);
   SPI.write(data);
-  //SPI.transfer(data);
 }
 
-void init2() {
+void initialize() {
   SPI.setFrequency(8 * 1000000);
   SPI.setDataMode(SPI_MODE0);
   SPI.write(0x00); // Need to bring clk high before init
@@ -164,14 +169,6 @@ void moveCursor(short x, short y) {
 
   writeCommand(SSD1351_CMD_WRITERAM);  
 }
-/*
-void drawPixel(short x, short y, short color) {
-  moveCursor(x, y);
-  // Data mode
-  digitalWrite(p_dc, HIGH);
-  SPI.write16(color); 
-}
-*/
 
 void drawPixel(uint16_t x, uint16_t y, uint16_t color) {
   writeCommand(SSD1351_CMD_SETCOLUMN);
@@ -196,11 +193,8 @@ void setup() {
   pinMode(p_rst, OUTPUT);
   
   SPI.begin(p_sclk, -1, p_mosi, p_cs);
-  SPI.setDataMode(SPI_MODE3);
 
-  //reset();
-  //initialize();
-  init2();
+  initialize();
 }
 
 const uint16_t buffer_size = SSD1351HEIGHT * SSD1351WIDTH * 2;
@@ -224,19 +218,17 @@ void SetAllBuffer(uint16_t color) {
 }
 
 bool white = true;
+// Draw entire screen buffer each cycle, will flash black/white.
 void loop_flash() {
   SetAllBuffer((white = !white) ? WHITE : BLACK);
   refreshFromBuffer();
-  //delay(500);
-  //Serial.println(".");
 }
 
 short x = 0;
 short y = 0;
-void loop() {
-//  digitalWrite(p_cs, LOW);
+// Draw one pixel each cycle, will sweep from black to white and back.
+void loop_sweep() {
   drawPixel(x, y, white ? WHITE : BLACK);
-//  digitalWrite(p_cs, HIGH);
   
   if (y % 128 == 0) {
     x = ++x % 128;
@@ -245,6 +237,15 @@ void loop() {
     }
   }
   y = ++y % 128;
-  //Serial.println(String("Moved pixel: (") + String(x) + "," + String(y) + ")");
-  //delay(500);
 }
+
+void loop() {
+  // hard code whether you want to flash or sweep.
+  bool flash = false;
+  if (flash) {
+    loop_flash();
+  } else {
+    loop_sweep();
+  }
+}
+
