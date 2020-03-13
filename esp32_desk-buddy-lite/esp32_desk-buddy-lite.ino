@@ -1,9 +1,3 @@
-
-/*
-    Based on Neil Kolban example for IDF: https://github.com/nkolban/esp32-snippets/blob/master/cpp_utils/tests/BLE%20Tests/SampleServer.cpp
-    Ported to Arduino ESP32 by Evandro Copercini
-*/
-
 #include <functional>
 #include <memory>
 #include <list>
@@ -33,59 +27,6 @@ hw_timer_t *timer = NULL;
 // They return whether they should be rescheduled.
 std::vector<std::function<bool()>> run_queue_;
 
-class PwmPinCallback : public BLECharacteristicCallbacks {
-    void onWrite(BLECharacteristic *pCharacteristic) {
-      const std::string rxValue = pCharacteristic->getValue();
-
-      if (rxValue.length() > 0) {
-        Serial.print("*********  PWM ");
-        Serial.print(channel_);
-        Serial.println("  *********");
-        Serial.print("Received Value: ");
-
-        for (int i = 0; i < rxValue.length(); i++) {
-          Serial.print(rxValue[i]);
-        }
-
-        Serial.println();
-
-        // Do stuff based on the command received from the app
-        if (rxValue.find("On") != -1 && !state_) { 
-          Serial.println("Turning ON!");
-          for (int i = kBottom; i < kTop; i++) {
-            ledcWrite(channel_, i);
-            delay(kDelayMs);
-          }
-          state_ = true;
-        } else if (rxValue.find("Off") != -1 && state_) {          
-          Serial.println("Turning OFF!");
-          for (int i = kTop; i > kBottom; i--) {
-            ledcWrite(channel_, i);
-            delay(kDelayMs);
-          }
-          ledcWrite(channel_, 0);
-          state_ = false;
-        }
-
-        Serial.println();
-        Serial.println("*********");
-      }
-    }
-
-public:
-    PwmPinCallback(uint8_t channel, uint8_t pin) : channel_(channel) {
-      ledcSetup(channel_, 500, 8);
-      ledcAttachPin(pin, channel_);
-    }
-
-private:
-    static const uint8_t kBottom = 100;
-    static const uint8_t kTop = 180;
-    static const uint8_t kDelayMs = 15;
-    const uint8_t channel_;
-    bool state_ = false;
-};
-
 class PinSafetyCallback : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
       const std::string rxValue = pCharacteristic->getValue();
@@ -102,7 +43,6 @@ class PinSafetyCallback : public BLECharacteristicCallbacks {
 
         Serial.println();
 
-        // Do stuff based on the command received from the app
         if (rxValue.find("On") != -1) {         
           if (last_cb_active_) {
             *last_cb_active_ = false;
@@ -213,7 +153,6 @@ void setupSolenoid(BLEServer* pServer) {
                                        );
   pCharacteristic->setValue("Off");
   pCharacteristic->setCallbacks(new PinSafetyCallback(SOLENOID_1_PIN, 120));
-  //pCharacteristic->setCallbacks(new PwmPinCallback(0, SOLENOID_1_PIN));
 
   pCharacteristic = pService->createCharacteristic(
                        SOLENOID_2_UUID,
@@ -222,7 +161,6 @@ void setupSolenoid(BLEServer* pServer) {
                      );
   pCharacteristic->setValue("Off");
   pCharacteristic->setCallbacks(new PinSafetyCallback(SOLENOID_2_PIN, 120));
-  //pCharacteristic->setCallbacks(new PwmPinCallback(1, SOLENOID_2_PIN));
   
   pService->start();
 }
